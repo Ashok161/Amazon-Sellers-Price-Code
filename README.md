@@ -1,5 +1,3 @@
-# Amazon-Seller-Price
-
 Here's the content formatted specifically for a `README.md` file:
 
 ```markdown
@@ -29,7 +27,6 @@ Here's the content formatted specifically for a `README.md` file:
 
 ## Folder Structure
 
-```
 root
 │
 ├── client                   # Frontend files
@@ -56,7 +53,6 @@ root
 └── ...
 ```
 
----
 
 ## Setup
 
