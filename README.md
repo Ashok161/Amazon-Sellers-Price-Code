@@ -27,10 +27,6 @@ Here's the content formatted specifically for a `README.md` file:
 
 ## Folder Structure
 
-<<<<<<< HEAD
-```
-=======
->>>>>>> origin/main
 root
 │
 ├── client                   # Frontend files
@@ -57,10 +53,6 @@ root
 └── ...
 ```
 
-<<<<<<< HEAD
----
-=======
->>>>>>> origin/main
 
 ## Setup
 
@@ -103,10 +95,4 @@ root
 - Ensure you have adequate permissions on the Google Cloud project for the operations required.
 - If deploying to a server, ensure the `.env` file and Service Account JSON file are securely stored.
 - The backend runs on `http://localhost:5000`, and the frontend runs on `http://localhost:3000` by default.
-<<<<<<< HEAD
-```
 
-This can be directly placed in a `README.md` file for your project.
-=======
-
->>>>>>> origin/main
