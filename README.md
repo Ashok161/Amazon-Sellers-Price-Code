@@ -10,7 +10,7 @@
 2. **Google Cloud Service Account**  
    - Create a Google Cloud account if you don’t have one.
    - Create a new project in Google Cloud.
-   - Set up a Service Account for your project.
+   - Set up a Service Account for your project and enable Google Sheets API
    - Download the Service Account JSON key file.
 
 3. **Google Cloud JSON Key**  
