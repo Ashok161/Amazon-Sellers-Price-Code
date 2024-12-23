@@ -12,7 +12,6 @@ exports.getFeeStructure = async (req, res) => {
 
 exports.calculateProfitability = async (req, res) => {
   try {
-    // Extract user input from request
     const {
       productCategory,
       sellingPrice,
@@ -23,7 +22,6 @@ exports.calculateProfitability = async (req, res) => {
       location
     } = req.body;
 
-    // 1. Get all 4 sheets of data
     const {
       referralFees,
       closingFees,
@@ -31,10 +29,7 @@ exports.calculateProfitability = async (req, res) => {
       othersFees
     } = await feeStructureService.getFeeStructure();
 
-    // 2. Calculate the referral fee
-    //    For example, find a row in "referralFees" that matches:
-    //      row.category === productCategory
-    //      row.priceRangeInr = "<= 500" or "> 500" (or "All")
+    // Calculate referral fee
     const referralFeePercentage = findReferralFeePercentage(
       referralFees,
       productCategory,
@@ -42,8 +37,7 @@ exports.calculateProfitability = async (req, res) => {
     );
     const referralFee = (sellingPrice * referralFeePercentage) / 100;
 
-    // 3. Calculate the closing fee
-    //    We'll guess the user might be "Easy Ship (Standard)" if shippingMode === "Easy Ship" + serviceLevel === "Standard"
+    // Calculate closing fee
     const closingFeeValue = findClosingFee(
       closingFees,
       sellingPrice,
@@ -51,7 +45,7 @@ exports.calculateProfitability = async (req, res) => {
       serviceLevel
     );
 
-    // 4. Calculate the weight handling fee
+    // Calculate weight handling fee
     const weightHandlingFeeValue = findWeightHandlingFee(
       weightHandlingFees,
       shippingMode,
@@ -60,14 +54,13 @@ exports.calculateProfitability = async (req, res) => {
       location
     );
 
-    // 5. Calculate pick & pack from "othersFees"
-    //    e.g., "Pick & Pack Fee", "Standard Size" => "₹14"
+    // Calculate pick & pack fee
     const pickAndPackFeeValue = findPickAndPackFee(
       othersFees,
-      productSize // e.g. "Standard Size" or "Oversize/Heavy & Bulky"
+      productSize
     );
 
-    // Summation
+    // Calculate total fees and net earnings
     const totalFees = referralFee + closingFeeValue + weightHandlingFeeValue + pickAndPackFeeValue;
     const netEarnings = sellingPrice - totalFees;
 
@@ -87,16 +80,11 @@ exports.calculateProfitability = async (req, res) => {
   }
 };
 
-// --------------------- HELPER FUNCTIONS ---------------------
-// Each function deals with data from one sheet
-// You must adapt the logic to your actual columns & pricing rules.
-
+// Helper functions
 function findReferralFeePercentage(referralFees, category, sellingPrice) {
-  // E.g. match "Automotive - Helmets & Riding Gloves"
-  // Then see if Price Range (INR) = "<= 500", "> 500", "All"
   const row = referralFees.find((r) => {
     if (r.category !== category) return false;
-    const priceRange = (r.priceRangeInr || '').trim(); // e.g. "<= 500"
+    const priceRange = (r.priceRangeInr || '').trim();
 
     if (priceRange === 'All') {
       return true;
@@ -108,57 +96,51 @@ function findReferralFeePercentage(referralFees, category, sellingPrice) {
     return false;
   });
 
-  if (!row) return 0; // Not found
-  // "Referral Fee Percentage" might have a % sign, e.g. "6.50%"
+  if (!row) return 0;
   const valStr = (row.referralFeePercentage || '').replace('%', '');
   return parseFloat(valStr) || 0;
 }
 
 function findClosingFee(closingFees, sellingPrice, shippingMode, serviceLevel) {
-  // For example, if shippingMode === "Easy Ship" and serviceLevel === "Standard",
-  // we might look for the column "Easy Ship (Standard)" in your sheet.
-  // Then figure out which "Price Range (₹)" row to match (like "0-250", "251-500", "501-1000").
   const priceRangeRow = closingFees.find((r) => {
-    const range = (r.priceRange || '').trim(); // e.g. "251-500"
+    const range = (r.priceRange || '').trim();
     return isPriceInRange(range, sellingPrice);
   });
 
   if (!priceRangeRow) return 0;
 
-  // Now pick the correct column depending on shipping mode + service level
-  // This is one approach:
   if (shippingMode === 'Easy Ship' && serviceLevel === 'Standard') {
-    // e.g. "Easy Ship (Standard)"
     return parseFeeString(priceRangeRow.easyShipStandard || '0');
+  } else if (shippingMode === 'FBA') {
+    return parseFeeString(priceRangeRow[`${shippingMode} ${serviceLevel}`] || '0');
+  } else if (shippingMode === 'Self Ship') {
+    return parseFeeString(priceRangeRow.selfShip || '0');
+  } else if (shippingMode === 'Seller Flex') {
+    return parseFeeString(priceRangeRow.sellerFlex || '0');
   }
-  // or if shippingMode === 'FBA' => maybe "FBA Normal" or "FBA Exception"?
-  // etc. Adapt as needed...
   return 0;
 }
 
 function findWeightHandlingFee(weightFees, shippingMode, serviceLevel, weight, location) {
-  // For example, if shippingMode === "Easy Ship", productSize === "Standard",
-  // we might look for a row with "Easy Ship Standard Size - Standard".
-  // Then see if "Weight Range" is "First 500g" if weight <= 0.5.
-  // Then pick the correct location column (e.g. "Local", "Regional", "National").
   const row = weightFees.find((r) => {
-    const level = (r.serviceLevel || '').toLowerCase(); 
-    // e.g. "easy ship standard size - standard"
-    if (!level.includes('easy ship')) return false;
-    if (!level.includes('standard size')) return false;
+    const level = (r.serviceLevel || '').toLowerCase();
+    if (!level.includes(shippingMode.toLowerCase())) return false;
     if (!level.includes(serviceLevel.toLowerCase())) return false;
 
-    // Next, check "weight range"
     if (weight <= 0.5 && r.weightRange === 'First 500g') {
       return true;
+    } else if (weight > 0.5 && weight <= 1 && r.weightRange === 'Additional 500g up to 1kg') {
+      return true;
+    } else if (weight > 1 && weight <= 5 && r.weightRange === 'Additional kg after 1kg') {
+      return true;
+    } else if (weight > 5 && r.weightRange === 'Additional kg after 5kg') {
+      return true;
     }
-    // For bigger weights, you'd match "Additional 500g", "Additional kg", etc.
     return false;
   });
 
   if (!row) return 0;
 
-  // Now pick the correct location column (Local/Regional/National/IXD).
   if (location === 'Local') {
     return parseFeeString(row.local || '0');
   } else if (location === 'Regional') {
@@ -166,13 +148,10 @@ function findWeightHandlingFee(weightFees, shippingMode, serviceLevel, weight, l
   } else if (location === 'National') {
     return parseFeeString(row.national || '0');
   }
-  // etc.
   return 0;
 }
 
 function findPickAndPackFee(othersFees, productSize) {
-  // We look for row.feeType === "Pick & Pack Fee"
-  // and row.category === e.g. "Standard Size" or "Oversize/Heavy & Bulky"
   const row = othersFees.find(
     (r) => r.feeType === 'Pick & Pack Fee' && r.category === productSize
   );
@@ -180,9 +159,7 @@ function findPickAndPackFee(othersFees, productSize) {
   return parseFeeString(row.rate || '0');
 }
 
-// --- Utility to parse a "price range" string like "251-500" ---
 function isPriceInRange(rangeStr, price) {
-  // e.g. "0-250", "251-500", "501-1000"
   const parts = rangeStr.split('-');
   if (parts.length === 2) {
     const min = parseFloat(parts[0]) || 0;
@@ -192,9 +169,6 @@ function isPriceInRange(rangeStr, price) {
   return false;
 }
 
-// --- Utility to parse a "₹" string or remove a "%" sign, etc. ---
 function parseFeeString(feeStr) {
-  // e.g. "₹25" => "25"
-  // remove "₹", any commas, etc.
   return parseFloat(feeStr.replace(/[₹,]/g, '')) || 0;
 }
