@@ -91,7 +91,7 @@ root
 
 ## Notes
 
-- Ensure you have adequate permissions on the Google Cloud project for the operations required.
+- Ensure you have adequate permissions on the Service Account on Google Cloud with Google Sheets API enabled to get these credentials.
 - If deploying to a server, ensure the `.env` file and Service Account JSON file are securely stored.
 - The backend runs on `http://localhost:5000`, and the frontend runs on `http://localhost:3000` by default.
 
